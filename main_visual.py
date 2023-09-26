@@ -95,6 +95,7 @@ if(args.weights is not None):
 video_model = parallel_model(video_model)
 
 def dataset2dataloader(dataset, batch_size, num_workers, shuffle=True):
+    print(len(dataset), batch_size, num_workers, shuffle)
     loader =  DataLoader(dataset,
             batch_size = batch_size, 
             num_workers = num_workers,   

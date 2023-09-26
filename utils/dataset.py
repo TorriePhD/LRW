@@ -7,14 +7,13 @@ import os
 from torch.utils.data import Dataset
 from .cvtransforms import *
 import torch
-from turbojpeg import TurboJPEG, TJPF_GRAY, TJSAMP_GRAY, TJFLAG_PROGRESSIVE
 
 
-jpeg = TurboJPEG()
+# jpeg = TurboJPEG()
 class LRWDataset(Dataset):
     def __init__(self, phase, args):
 
-        with open('label_sorted.txt') as myfile:
+        with open('/home/st392/code/sandbox/learn-an-effective-lip-reading-model-without-pains/label_sorted.txt') as myfile:
             self.labels = myfile.read().splitlines()            
         
         self.list = []
@@ -26,7 +25,7 @@ class LRWDataset(Dataset):
             setattr(self.args, 'is_aug', True)
 
         for (i, label) in enumerate(self.labels):
-            files = glob.glob(os.path.join('lrw_roi_80_116_175_211_npy_gray_pkl_jpeg', label, phase, '*.pkl'))                    
+            files = glob.glob(os.path.join('/home/st392/code/datasets/LRW/lrw_roi_80_116_175_211_npy_gray_pkl_jpeg', label, phase, '*.pkl'))                    
             files = sorted(files)
             
 
@@ -38,7 +37,6 @@ class LRWDataset(Dataset):
         tensor = torch.load(self.list[idx])                    
         
         inputs = tensor.get('video')
-        inputs = [jpeg.decode(img, pixel_format=TJPF_GRAY) for img in inputs]
         inputs = np.stack(inputs, 0) / 255.0
         inputs = inputs[:,:,:,0]
         

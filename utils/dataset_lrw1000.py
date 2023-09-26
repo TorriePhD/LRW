@@ -7,10 +7,10 @@ import random
 from .cvtransforms import *
 import torch
 from collections import defaultdict
-from turbojpeg import TurboJPEG, TJPF_GRAY, TJSAMP_GRAY, TJFLAG_PROGRESSIVE
+# from turbojpeg import TurboJPEG, TJPF_GRAY, TJSAMP_GRAY, TJFLAG_PROGRESSIVE
 
-
-jpeg = TurboJPEG()
+# 
+# jpeg = TurboJPEG()
 class LRW1000_Dataset(Dataset):
     
     def __init__(self, phase, args):
@@ -34,7 +34,8 @@ class LRW1000_Dataset(Dataset):
 
         pkl = torch.load(self.data[idx])
         video = pkl.get('video')
-        video = [jpeg.decode(img, pixel_format=TJPF_GRAY) for img in video]        
+        # video = [jpeg.decode(img, pixel_format=TJPF_GRAY) for img in video]        
+        video = [cv2.imdecode(img, cv2.IMREAD_GRAYSCALE) for img in video]
         video = np.stack(video, 0)
         video = video[:,:,:,0]
         
