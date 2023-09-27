@@ -7,6 +7,8 @@ import os
 from torch.utils.data import Dataset
 from .cvtransforms import *
 import torch
+from pathlib import Path
+from torch.nn.utils.rnn import pad_sequence
 
 
 # jpeg = TurboJPEG()
@@ -21,39 +23,20 @@ class LRWDataset(Dataset):
         self.phase = phase        
         self.args = args
         
-        if(not hasattr(self.args, 'is_aug')):
-            setattr(self.args, 'is_aug', True)
-
+        # if(not hasattr(self.args, 'is_aug')):
+        #     setattr(self.args, 'is_aug', True)
+        parentPath = Path("/home/st392/code/datasets/LRW/facemeshes")
         for (i, label) in enumerate(self.labels):
-            files = glob.glob(os.path.join('/home/st392/code/datasets/LRW/lrw_roi_80_116_175_211_npy_gray_pkl_jpeg', label, phase, '*.pkl'))                    
-            files = sorted(files)
-            
-
-            self.list += [file for file in files]
+            myPath = parentPath / self.phase / f"{label}_meshes.npy"
+            meshes = np.load(myPath, allow_pickle=True)
+            #torch.flatten(seq, start_dim=-2)
+            # self.list += [[torch.from_numpy(file),i] for file in meshes]
+            self.list += [[torch.flatten(torch.from_numpy(file), start_dim=-2),i] for file in meshes]
             
         
     def __getitem__(self, idx):
-            
-        tensor = torch.load(self.list[idx])                    
-        
-        inputs = tensor.get('video')
-        inputs = np.stack(inputs, 0) / 255.0
-        inputs = inputs[:,:,:,0]
-        
-                
-        if(self.phase == 'train'):
-            batch_img = RandomCrop(inputs, (88, 88))
-            batch_img = HorizontalFlip(batch_img)
-        elif self.phase == 'val' or self.phase == 'test':
-            batch_img = CenterCrop(inputs, (88, 88))
-        
-        result = {}            
-        result['video'] = torch.FloatTensor(batch_img[:,np.newaxis,...])
-        #print(result['video'].size())
-        result['label'] = tensor.get('label')
-        result['duration'] = 1.0 * tensor.get('duration')
-
-        return result
+        inputs,label = self.list[idx]   
+        return inputs, label
 
     def __len__(self):
         return len(self.list)
@@ -71,4 +54,23 @@ class LRWDataset(Dataset):
         end = int(mid + duration / 2 * 25)
         tensor[start:end] = 1.0
         return tensor            
+    def custom_collate(self,batch):
+        # Sort batch by sequence length in descending order
+        batch.sort(key=lambda x: len(x[0]), reverse=True)
         
+        # Extract sequences and labels from the batch
+        sequences, labels = zip(*batch)
+        sequences = [seq.float() for seq in sequences]
+        # Get sequence lengths and create a tensor
+        seq_lengths = [len(seq) for seq in sequences]
+        
+        # Pad the sequences
+        sequences_padded = pad_sequence(sequences, batch_first=False, padding_value=0)
+        
+        # Convert labels to tensor
+        labels = torch.LongTensor(labels)
+        return sequences_padded, seq_lengths, labels
+if __name__ == "__main__":
+    LRWDataset('train', None)
+    data,label = LRWDataset[0]
+    print(data.shape)

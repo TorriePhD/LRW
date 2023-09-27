@@ -14,6 +14,7 @@ import random
 import pdb
 import shutil
 from LSR import LSR
+from pathlib import Path
 from torch.cuda.amp import autocast, GradScaler
 
 
@@ -53,7 +54,8 @@ parser.add_argument('--se', type=str2bool, required=True)
 
 args = parser.parse_args()
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
-
+currentTime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+savePath = Path(args.save_prefix)/currentTime
 if(args.dataset == 'lrw'):
     from utils import LRWDataset as Dataset
 elif(args.dataset == 'lrw1000'):    
@@ -95,13 +97,13 @@ if(args.weights is not None):
 video_model = parallel_model(video_model)
 
 def dataset2dataloader(dataset, batch_size, num_workers, shuffle=True):
-    print(len(dataset), batch_size, num_workers, shuffle)
     loader =  DataLoader(dataset,
             batch_size = batch_size, 
             num_workers = num_workers,   
             shuffle = shuffle,         
             drop_last = False,
-            pin_memory=True)
+            pin_memory=True,
+            collate_fn=dataset.custom_collate)
     return loader
 
 def add_msg(msg, k, v):
@@ -126,25 +128,21 @@ def test():
         cons_total = 0.0
         attns = []
 
-        for (i_iter, input) in enumerate(loader):
+        for (i_iter, (video,seq_lens,labels)) in enumerate(loader):
             
             video_model.eval()
             
             tic = time.time()
-            video = input.get('video').cuda(non_blocking=True)
-            label = input.get('label').cuda(non_blocking=True)
             total = total + video.size(0)
-            names = input.get('name')
-            border = input.get('duration').cuda(non_blocking=True).float()
-            
+            labels = labels.cuda(non_blocking=True)
+            video = video.cuda(non_blocking=True)   
+            #put seq_lens on cpu
+            seq_lens = seq_lens.cpu() 
             with autocast():
-                if(args.border):
-                    y_v = video_model(video, border)                                           
-                else:
-                    y_v = video_model(video)                                           
+                y_v = video_model(video,seq_lens)                                           
                                 
 
-            v_acc.extend((y_v.argmax(-1) == label).cpu().numpy().tolist())
+            v_acc.extend((y_v.argmax(-1) == labels).cpu().numpy().tolist())
             toc = time.time()
             if(i_iter % 10 == 0):  
                 msg = ''              
@@ -192,14 +190,13 @@ def train():
         lsr = LSR()
         
         
-        for (i_iter, input) in enumerate(loader):
+        for (i_iter, (video,seq_lens,labels)) in enumerate(loader):
             tic = time.time()           
             
             video_model.train()
-            video = input.get('video').cuda(non_blocking=True)
-            label = input.get('label').cuda(non_blocking=True).long()     
-            border = input.get('duration').cuda(non_blocking=True).float()
-            
+            video = video.cuda(non_blocking=True)
+            labels = labels.cuda(non_blocking=True)
+
             loss = {}
             
             if(args.label_smooth):
@@ -207,30 +204,9 @@ def train():
             else:
                 loss_fn = nn.CrossEntropyLoss()
             
-            with autocast():
-                if(args.mixup):
-                    lambda_ = np.random.beta(alpha, alpha)
-                    index = torch.randperm(video.size(0)).cuda(non_blocking=True)
-                    
-                    mix_video = lambda_ * video + (1 - lambda_) * video[index, :]
-                    mix_border = lambda_ * border + (1 - lambda_) * border[index, :]
-                        
-                    label_a, label_b = label, label[index]            
-
-                    if(args.border):
-                        y_v = video_model(mix_video, mix_border)       
-                    else:                
-                        y_v = video_model(mix_video)       
-
-                    loss_bp = lambda_ * loss_fn(y_v, label_a) + (1 - lambda_) * loss_fn(y_v, label_b)
-                    
-                else:
-                    if(args.border):
-                        y_v = video_model(video, border)       
-                    else:                
-                        y_v = video_model(video)    
-                        
-                    loss_bp = loss_fn(y_v, label)
+            with autocast():     
+                y_v = video_model(video,seq_lens)
+                loss_bp = loss_fn(y_v, labels)
                                     
             
             loss['CE V'] = loss_bp
@@ -254,7 +230,7 @@ def train():
                 acc, msg = test()
 
                 if(acc > best_acc):
-                    savename = '{}_iter_{}_epoch_{}_{}.pt'.format(args.save_prefix, tot_iter, epoch, msg)
+                    savename = '{}_iter_{}_epoch_{}_{}.pt'.format(savePath, tot_iter, epoch, msg)
                     
                     temp = os.path.split(savename)[0]
                     if(not os.path.exists(temp)):
