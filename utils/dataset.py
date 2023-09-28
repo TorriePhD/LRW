@@ -31,8 +31,14 @@ class LRWDataset(Dataset):
             meshes = np.load(myPath, allow_pickle=True)
             #torch.flatten(seq, start_dim=-2)
             # self.list += [[torch.from_numpy(file),i] for file in meshes]
-            self.list += [[torch.flatten(torch.from_numpy(file), start_dim=-2),i] for file in meshes]
+            self.list += [[torch.flatten(torch.from_numpy(self.normalize(file)), start_dim=-2),i] for file in meshes]
             
+    def normalize(self, lmks):
+            median = np.median(lmks, axis=0)
+            lmks = lmks - median
+            # lmks /= 10
+            return lmks
+
         
     def __getitem__(self, idx):
         inputs,label = self.list[idx]   
