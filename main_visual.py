@@ -55,7 +55,7 @@ parser.add_argument('--se', type=str2bool, required=True)
 args = parser.parse_args()
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
 currentTime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-savePath = Path(args.save_prefix)/str(args.lr)/currentTime
+savePath = Path(args.save_prefix)/"noFC"/str(args.lr)/currentTime
 if(args.dataset == 'lrw'):
     from utils import LRWDataset as Dataset
 elif(args.dataset == 'lrw1000'):    

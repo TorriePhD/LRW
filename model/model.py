@@ -31,11 +31,11 @@ class VideoModel(nn.Module):
         if(self.training):                            
             with autocast():
                 
-                f_v = self.video_fn(v)  
+                f_v = self.video_fn(torch.tanh(v))  
                 f_v = self.dropout(f_v)        
             f_v = f_v.float()
         else:                            
-            f_v = self.video_fn(v)  
+            f_v = self.video_fn(torch.tanh(v))  
             f_v = self.dropout(f_v)        
         
         if(self.args.border):
