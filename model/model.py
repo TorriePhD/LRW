@@ -2,7 +2,7 @@ from .video_cnn import VideoCNN
 import torch
 import torch.nn as nn
 import random
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 from torch.cuda.amp import autocast, GradScaler
 
 
@@ -22,11 +22,11 @@ class VideoModel(nn.Module):
         self.gru = nn.GRU(in_dim, 1024, 3, batch_first=True, bidirectional=True, dropout=0.2)        
             
 
-        self.v_cls = nn.Linear(1024*2, self.args.n_class)     
+        self.v_cls = nn.Linear(1024, self.args.n_class)     
         self.dropout = nn.Dropout(p=dropout)        
 
     def forward(self, v,seq_len, border=None):
-        self.gru.flatten_parameters()
+        # self.gru.flatten_parameters()
         
         if(self.training):                            
             with autocast():
@@ -44,9 +44,8 @@ class VideoModel(nn.Module):
         else:            
             packed = pack_padded_sequence(
             f_v, seq_len, batch_first=False, enforce_sorted=False)
-            h, _ = self.gru(packed)
-        
+            _, h = self.gru(packed)
                                                                                                         
-        y_v = self.v_cls(self.dropout(h)).mean(1)
+        y_v = self.v_cls(self.dropout(h)).mean(0)
             
         return y_v
