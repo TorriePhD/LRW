@@ -19,7 +19,7 @@ class VideoModel(nn.Module):
             in_dim = 512 + 1
         else:
             in_dim = 512
-        self.gru = nn.GRU(in_dim, 1024, 3, batch_first=True, bidirectional=True, dropout=0.2)        
+        self.gru = nn.GRU(in_dim, 1024, 3, batch_first=False, bidirectional=True, dropout=0.2)        
             
 
         self.v_cls = nn.Linear(1024, self.args.n_class)     
