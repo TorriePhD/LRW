@@ -14,6 +14,7 @@ import random
 import pdb
 import shutil
 from LSR import LSR
+from pathlib import Path
 from torch.cuda.amp import autocast, GradScaler
 
 
@@ -62,7 +63,7 @@ else:
     raise Exception('lrw or lrw1000')    
 
 
-video_model = VideoModel(args).cuda()
+video_model = LmkRNN().cuda()
 
 def parallel_model(model):
     model = nn.DataParallel(model)
@@ -166,7 +167,7 @@ def showLR(optimizer):
 
 def train():            
     
-    
+    savePath = Path("/home/st392/compute/LRW/authImages")/str(args.lr)
     
     dataset = Dataset('train', args)
     print('Start Training, Data Length:',len(dataset))
@@ -254,7 +255,7 @@ def train():
                 acc, msg = test()
 
                 if(acc > best_acc):
-                    savename = '{}_iter_{}_epoch_{}_{}.pt'.format(args.save_prefix, tot_iter, epoch, msg)
+                    savename = '{}/iter_{}_epoch_{}_{}.pt'.format(savePath,args.save_prefix, tot_iter, epoch, msg)
                     
                     temp = os.path.split(savename)[0]
                     if(not os.path.exists(temp)):
