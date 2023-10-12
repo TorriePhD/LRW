@@ -168,7 +168,7 @@ def showLR(optimizer):
 
 def train():            
     
-    savePath = Path("/home/st392/compute/LRW/authPCCImages")/str(args.lr)
+    savePath = Path("/home/st392/compute/LRW/authPCCImagesInside")/str(args.lr)
     
     dataset = Dataset('train', args)
     print('Start Training, Data Length:',len(dataset))
