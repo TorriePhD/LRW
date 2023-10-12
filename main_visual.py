@@ -57,6 +57,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
 
 if(args.dataset == 'lrw'):
     from utils import LRWDataset as Dataset
+    from utils import LRW_collate as collate_fn
 elif(args.dataset == 'lrw1000'):    
     from utils import LRW1000_Dataset as Dataset
 else:
@@ -102,9 +103,11 @@ def dataset2dataloader(dataset, batch_size, num_workers, shuffle=True):
             num_workers = num_workers,   
             shuffle = shuffle,         
             drop_last = False,
-            pin_memory=True)
+            pin_memory=True,
+            collate_fn=collate_fn)
     return loader
-
+valdataset = Dataset('val', args)
+valloader = dataset2dataloader(valdataset, args.batch_size, args.num_workers, shuffle=False)  
 def add_msg(msg, k, v):
     if(msg != ''):
         msg = msg + ','
@@ -114,9 +117,7 @@ def add_msg(msg, k, v):
 def test():
     
     with torch.no_grad():
-        dataset = Dataset('val', args)
-        print('Start Testing, Data Length:',len(dataset))
-        loader = dataset2dataloader(dataset, args.batch_size, args.num_workers, shuffle=False)        
+        print('Start Testing, Data Length:',len(valdataset))
         
         print('start testing')
         v_acc = []
@@ -127,30 +128,30 @@ def test():
         cons_total = 0.0
         attns = []
 
-        for (i_iter, input) in enumerate(loader):
+        for (i_iter, input) in enumerate(valloader):
             
             video_model.eval()
             
             tic = time.time()
+            video,label = input
             video = input.get('video').cuda(non_blocking=True)
             label = input.get('label').cuda(non_blocking=True)
             total = total + video.size(0)
-            names = input.get('name')
-            border = input.get('duration').cuda(non_blocking=True).float()
+            # names = input.get('name')
+            # border = input.get('duration').cuda(non_blocking=True).float()
             
             with autocast():
-                if(args.border):
-                    y_v = video_model(video, border)                                           
-                else:
-                    y_v = video_model(video)                                           
+                # if(args.border):
+                #     y_v = video_model(video, border)                                           
+                # else:
+                y_v = video_model(video)                                           
                                 
-
-            v_acc.extend((y_v.argmax(-1) == label).cpu().numpy().tolist())
+            v_acc.extend((y_v.argmax(-1) == label.argmax(-1)).cpu().numpy().tolist())
             toc = time.time()
             if(i_iter % 10 == 0):  
                 msg = ''              
                 msg = add_msg(msg, 'v_acc={:.5f}', np.array(v_acc).reshape(-1).mean())                
-                msg = add_msg(msg, 'eta={:.5f}', (toc-tic)*(len(loader)-i_iter)/3600.0)
+                msg = add_msg(msg, 'eta={:.5f}', (toc-tic)*(len(valloader)-i_iter)/3600.0)
                                 
                 print(msg)            
 
@@ -167,7 +168,7 @@ def showLR(optimizer):
 
 def train():            
     
-    savePath = Path("/home/st392/compute/LRW/authImages")/str(args.lr)
+    savePath = Path("/home/st392/compute/LRW/authPCCImages")/str(args.lr)
     
     dataset = Dataset('train', args)
     print('Start Training, Data Length:',len(dataset))
@@ -198,8 +199,7 @@ def train():
             
             video_model.train()
             video = input.get('video').cuda(non_blocking=True)
-            label = input.get('label').cuda(non_blocking=True).long()     
-            border = input.get('duration').cuda(non_blocking=True).float()
+            label = input.get('label').cuda(non_blocking=True)  
             
             loss = {}
             
@@ -214,12 +214,12 @@ def train():
                     index = torch.randperm(video.size(0)).cuda(non_blocking=True)
                     
                     mix_video = lambda_ * video + (1 - lambda_) * video[index, :]
-                    mix_border = lambda_ * border + (1 - lambda_) * border[index, :]
                         
                     label_a, label_b = label, label[index]            
 
                     if(args.border):
-                        y_v = video_model(mix_video, mix_border)       
+                        # y_v = video_model(mix_video, mix_border)   
+                        pass    
                     else:                
                         y_v = video_model(mix_video)       
 
@@ -227,10 +227,10 @@ def train():
                     
                 else:
                     if(args.border):
-                        y_v = video_model(video, border)       
+                        # y_v = video_model(video, border)
+                        pass       
                     else:                
                         y_v = video_model(video)    
-                        
                     loss_bp = loss_fn(y_v, label)
                                     
             

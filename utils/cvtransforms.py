@@ -7,7 +7,7 @@ import torch
 def TensorRandomFlip(tensor):
     # (b, c, t, h, w)
     if(random.random() > 0.5):
-        return torch.flip(tensor, dims=[4])        
+        return torch.flip(tensor, dims=[3])        
     return tensor        
 
 def TensorRandomCrop(tensor, size):
@@ -15,7 +15,7 @@ def TensorRandomCrop(tensor, size):
     tw, th = size
     x1 = random.randint(0, w - tw)
     y1 = random.randint(0, h - th)
-    return tensor[:,:,:,x1:x1+th, y1:y1+w]
+    return tensor[:,:,x1:x1+tw, y1:y1+th]
 
 
 def CenterCrop(batch_img, size):

@@ -17,7 +17,6 @@ def extract_opencv(filename):
     while(cap.isOpened()):
         ret, frame = cap.read() # BGR
         if ret:
-            frame = frame[115:211, 79:175]
             video.append(frame)
         else:
             break
@@ -25,7 +24,7 @@ def extract_opencv(filename):
     return video        
 
 
-target_dir = '/home/st392/code/datasets/LRW/lrw_roi_80_116_175_211_npy_gray_pkl_jpeg'
+target_dir = '/home/st392/code/datasets/LRW/lrw_LipCropInside_pkl'
 
 if(not os.path.exists(target_dir)):
     os.makedirs(target_dir)    
@@ -33,15 +32,15 @@ if(not os.path.exists(target_dir)):
 class LRWDataset(Dataset):
     def __init__(self):
 
-        with open('/home/st392/code/sandbox/learn-an-effective-lip-reading-model-without-pains/label_sorted.txt') as myfile:
+        with open('/home/st392/code/learn-an-effective-lip-reading-model-without-pains/label_sorted.txt') as myfile:
             self.labels = myfile.read().splitlines()            
         
         self.list = []
 
         for (i, label) in enumerate(self.labels):
-            files = glob.glob(os.path.join('/home/st392/code/datasets/LRW/lipread_mp4', label, '*', '*.mp4'))
+            files = glob.glob(os.path.join('/home/st392/code/datasets/LRW/lipCropInside_mp4', label, '*', '*.mp4'))
             for file in files:
-                savefile = file.replace('/home/st392/code/datasets/LRW/lipread_mp4', target_dir).replace('.mp4', '.pkl')
+                savefile = file.replace('/home/st392/code/datasets/LRW/lipCropInside_mp4', target_dir).replace('.mp4', '.pkl')
                 savepath = os.path.split(savefile)[0]
                 if(not os.path.exists(savepath)):
                     os.makedirs(savepath)
@@ -53,7 +52,7 @@ class LRWDataset(Dataset):
             
         
     def __getitem__(self, idx):
-        savename = self.list[idx][0].replace('/home/st392/code/datasets/LRW/lipread_mp4', target_dir).replace('.mp4', '.pkl')    
+        savename = self.list[idx][0].replace('/home/st392/code/datasets/LRW/lipCropInside_mp4', target_dir).replace('.mp4', '.pkl')    
         inputs = extract_opencv(self.list[idx][0])
         result = {}        
          
@@ -62,7 +61,7 @@ class LRWDataset(Dataset):
         labels = self.list[idx][1]
         result['video'] = inputs
         result['label'] = int(labels)
-        result['duration'] = self.load_duration(duration.replace('.mp4', '.txt')).astype(bool)
+        result['duration'] = self.load_duration(duration.replace('.mp4', '.txt').replace("lipCropInside_mp4","lipread_mp4")).astype(bool)
         torch.save(result, savename)
         return result
 
