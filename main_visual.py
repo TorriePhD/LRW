@@ -64,7 +64,7 @@ else:
     raise Exception('lrw or lrw1000')    
 
 
-video_model = LmkRNN().cuda()
+video_model = VideoModel(args).cuda()
 
 def parallel_model(model):
     model = nn.DataParallel(model)
@@ -168,7 +168,7 @@ def showLR(optimizer):
 
 def train():            
     
-    savePath = Path("/home/st392/compute/LRW/authPCCImagesInside")/str(args.lr)
+    savePath = Path("/home/st392/compute/LRW/sotaPCCImagesInside")/str(args.lr)
     
     dataset = Dataset('train', args)
     print('Start Training, Data Length:',len(dataset))
