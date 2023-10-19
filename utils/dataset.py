@@ -29,8 +29,7 @@ class LRWDataset(Dataset):
         #     setattr(self.args, 'is_aug', True)
 
             
-        self.list = sorted(list(Path("/home/st392/code/datasets/LRW/lipCropInside_mp4").rglob(f'{phase}/*.mp4')))
-        # self.durations = [self.load_duration(str(file).replace('lipCrop_mp4', 'lipread_mp4').replace('.mp4', '.txt')) for file in self.list]
+        self.list = sorted(list(Path(f"/home/st392/code/datasets/LRW/{args.datasetVersion}").rglob(f'{phase}/*.mp4')))
         
     def __getitem__(self, idx):
             

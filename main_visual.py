@@ -46,6 +46,7 @@ parser.add_argument('--save_prefix', type=str, required=True)
 
 # dataset
 parser.add_argument('--dataset', type=str, required=True)
+parser.add_argument('--datasetVersion', type=str, required=True)
 parser.add_argument('--border', type=str2bool, required=True)
 parser.add_argument('--mixup', type=str2bool, required=True)
 parser.add_argument('--label_smooth', type=str2bool, required=True)
@@ -63,8 +64,9 @@ elif(args.dataset == 'lrw1000'):
 else:
     raise Exception('lrw or lrw1000')    
 
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-video_model = VideoModel(args).cuda()
+video_model = VideoModel(args).to(device)
 
 def parallel_model(model):
     model = nn.DataParallel(model)
@@ -115,30 +117,32 @@ def add_msg(msg, k, v):
     return msg    
 
 def test():
-    
+    from tqdm import tqdm
     with torch.no_grad():
         print('Start Testing, Data Length:',len(valdataset))
         
         print('start testing')
         v_acc = []
+        v_loss = []
         entropy = []
         acc_mean = []
         total = 0
         cons_acc = 0.0
         cons_total = 0.0
         attns = []
+        lossF = nn.CrossEntropyLoss()
 
-        for (i_iter, input) in enumerate(valloader):
+        for (i_iter, input) in tqdm(enumerate(valloader)):
             
             video_model.eval()
             
             tic = time.time()
             video,label = input
-            video = input.get('video').cuda(non_blocking=True)
-            label = input.get('label').cuda(non_blocking=True)
+            video = input.get('video').to(device)
+            label = input.get('label').to(device)
             total = total + video.size(0)
             # names = input.get('name')
-            # border = input.get('duration').cuda(non_blocking=True).float()
+            # border = input.get('duration').to(device).float()
             
             with autocast():
                 # if(args.border):
@@ -147,18 +151,21 @@ def test():
                 y_v = video_model(video)                                           
                                 
             v_acc.extend((y_v.argmax(-1) == label.argmax(-1)).cpu().numpy().tolist())
+            print(lossF(y_v, label).cpu().numpy().tolist())
+            v_loss.extend(lossF(y_v, label).cpu().numpy().tolist())
             toc = time.time()
             if(i_iter % 10 == 0):  
                 msg = ''              
                 msg = add_msg(msg, 'v_acc={:.5f}', np.array(v_acc).reshape(-1).mean())                
                 msg = add_msg(msg, 'eta={:.5f}', (toc-tic)*(len(valloader)-i_iter)/3600.0)
                                 
-                print(msg)            
+                print(msg)         
+               
 
         acc = float(np.array(v_acc).reshape(-1).mean())
         msg = 'v_acc_{:.5f}_'.format(acc)
-        
-        return acc, msg                                 
+        loss = float(np.array(v_loss).reshape(-1).mean())
+        return acc, msg,loss
 
 def showLR(optimizer):
     lr = []
@@ -168,7 +175,11 @@ def showLR(optimizer):
 
 def train():            
     
-    savePath = Path("/home/st392/compute/LRW/sotaPCCImagesInside")/str(args.lr)
+    import datetime
+    from tqdm import tqdm
+    from matplotlib import pyplot as plt
+    savePath = Path(f"/home/st392/compute/LRW/{args.datasetVersion}/{args.lr}/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}")
+    savePath.mkdir(parents=True, exist_ok=True)
     
     dataset = Dataset('train', args)
     print('Start Training, Data Length:',len(dataset))
@@ -182,10 +193,17 @@ def train():
 
     tot_iter = 0
     best_acc = 0.0
+    best_epoch = 0
     adjust_lr_count = 0
+    trainLoss = []
+    trainAcc = []
+    testLoss = []
+    testAcc = []
     alpha = 0.2
     beta_distribution = torch.distributions.beta.Beta(alpha, alpha)
-    scaler = GradScaler()             
+    scaler = GradScaler()     
+    loop = tqdm(max_epoch*len(loader))    
+    loop.set_description('Start Training')    
     for epoch in range(max_epoch):
         total = 0.0
         v_acc = 0.0
@@ -198,8 +216,8 @@ def train():
             tic = time.time()           
             
             video_model.train()
-            video = input.get('video').cuda(non_blocking=True)
-            label = input.get('label').cuda(non_blocking=True)  
+            video = input.get('video').to(device)
+            label = input.get('label').to(device)
             
             loss = {}
             
@@ -211,7 +229,7 @@ def train():
             with autocast():
                 if(args.mixup):
                     lambda_ = np.random.beta(alpha, alpha)
-                    index = torch.randperm(video.size(0)).cuda(non_blocking=True)
+                    index = torch.randperm(video.size(0)).to(device)
                     
                     mix_video = lambda_ * video + (1 - lambda_) * video[index, :]
                         
@@ -233,7 +251,24 @@ def train():
                         y_v = video_model(video)    
                     loss_bp = loss_fn(y_v, label)
                                     
-            
+                #plot loss and accuracy
+                plt.clf()
+                plt.subplot(121)
+                plt.plot(np.arange(len(trainAcc)), trainAcc, label='Train Accuracy')
+                plt.plot(np.arange(len(trainAcc)), testAcc, label='Val Accuracy')
+                plt.legend()
+                plt.xlabel("Batch")
+                plt.ylabel("Accuracy")
+                plt.title("Accuracy Plots")
+                plt.subplot(122)
+                plt.plot(np.arange(len(trainLoss)), trainLoss, label='Train Loss')
+                plt.plot(np.arange(len(trainLoss)), testLoss, label='Val Loss')
+                plt.legend()
+                plt.xlabel("Batch")
+                plt.ylabel("Loss")
+                plt.title("Loss Plots")
+                plt.savefig(savePath / f'loss.jpg')
+
             loss['CE V'] = loss_bp
                 
             optim_video.zero_grad()   
@@ -242,17 +277,16 @@ def train():
             scaler.update()
             
             toc = time.time()
+            trainLoss.append(loss_bp.item())
+            trainAcc.append((y_v.argmax(-1) == label.argmax(-1)).cpu().numpy().tolist())
+
             
-            msg = 'epoch={},train_iter={},eta={:.5f}'.format(epoch, tot_iter, (toc-tic)*(len(loader)-i_iter)/3600.0)
-            for k, v in loss.items():                                                
-                msg += ',{}={:.5f}'.format(k, v)
-            msg = msg + str(',lr=' + str(showLR(optim_video)))                    
-            msg = msg + str(',best_acc={:2f}'.format(best_acc))
-            print(msg)                                
-            
+
             if(i_iter == len(loader) - 1 or (epoch == 0 and i_iter == 0)):
 
-                acc, msg = test()
+                acc, msg,loss = test()
+                testLoss.append(loss)
+                testAcc.append(acc)
 
                 if(acc > best_acc):
                     savename = '{}/iter_{}_epoch_{}_{}.pt'.format(savePath,args.save_prefix, tot_iter, epoch, msg)
@@ -264,11 +298,23 @@ def train():
                         {
                             'video_model': video_model.module.state_dict(),
                         }, savename)         
-                     
+
 
                 if(tot_iter != 0):
-                    best_acc = max(acc, best_acc)    
-                    
+                    best_acc = max(acc, best_acc)   
+                    best_epoch = epoch if(acc > best_acc) else best_epoch 
+            else:
+                testLoss.append(testLoss[-1])
+                testAcc.append(testAcc[-1])
+
+            msg = 'epoch={},train_iter={}'.format(epoch, tot_iter,)
+            for k, v in loss.items():                                                
+                msg += ',{}={:.5f}'.format(k, v)
+            msg = msg + str(',lr=' + str(showLR(optim_video)))                    
+            msg = msg + str(',best_acc={:2f}'.format(best_acc))
+            msg = msg + str(',best_epoch={:2f}'.format(best_epoch))
+            loop.set_description(msg)
+            loop.update(1)
             tot_iter += 1        
             
         scheduler.step()            

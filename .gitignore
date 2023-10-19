@@ -5,3 +5,4 @@ lrw*
 *__pycache__
 run_*.sh
 run.sh
+*.sh
