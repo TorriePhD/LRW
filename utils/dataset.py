@@ -29,29 +29,34 @@ class LRWDataset(Dataset):
         #     setattr(self.args, 'is_aug', True)
 
             
-        self.list = sorted(list(Path(f"/home/st392/code/datasets/LRW/{args.datasetVersion}").rglob(f'{phase}/*.mp4')))
-        
+
+        if(not hasattr(self.args, 'is_aug')):
+            setattr(self.args, 'is_aug', True)
+
+        for (i, label) in enumerate(self.labels):
+            files = glob.glob(os.path.join('/tmp/code/datasets/LRW/lrw_roi_80_116_175_211_npy_gray_pkl_jpeg', label, phase, '*.pkl'))
+            files = sorted(files)
+            self.list += [file for file in files]        
     def __getitem__(self, idx):
             
-        video_file = self.list[idx]
-        video, _, _ = read_video(str(video_file), pts_unit='sec')  # Read video using torchvision.io.read_video
+        tensor = torch.load(self.list[idx])                    
 
-        # Assuming the videos are grayscale, but if they are RGB, you may need to convert them to grayscale
-        # using some additional processing.
-        video = video.float() / 255.0  # Normalize the video tensor
-        video = video[:,:,:,0]
-        video = video.unsqueeze(1)
+        inputs = tensor.get('video')
+        inputs = np.stack(inputs, 0) / 255.0
+        inputs = inputs[:,:,:,0]
+
+
         if(self.phase == 'train'):
-            batch_img = TensorRandomCrop(video, (88, 88))
-            batch_img = TensorRandomFlip(batch_img)
+            batch_img = RandomCrop(inputs, (88, 88))
+            batch_img = HorizontalFlip(batch_img)
         elif self.phase == 'val' or self.phase == 'test':
-            batch_img = CenterCrop(video, (88, 88))
-        
+            batch_img = CenterCrop(inputs, (88, 88))
+
         result = {}            
-        result['video'] = batch_img
+        result['video'] = torch.FloatTensor(batch_img[:,np.newaxis,...])
         #print(result['video'].size())
-        #get index in self.label where the label is the same as the videofle
-        result['label'] = torch.tensor(self.labels.index(video_file.parent.parent.name))
+        result['label'] = tensor.get('label')
+        result['duration'] = 1.0 * tensor.get('duration')
 
         return result
 

@@ -99,14 +99,12 @@ if(args.weights is not None):
 video_model = parallel_model(video_model)
 
 def dataset2dataloader(dataset, batch_size, num_workers, shuffle=True):
-    print(len(dataset), batch_size, num_workers, shuffle)
     loader =  DataLoader(dataset,
             batch_size = batch_size, 
             num_workers = num_workers,   
             shuffle = shuffle,         
             drop_last = False,
-            pin_memory=True,
-            collate_fn=collate_fn)
+            pin_memory=True,)
     return loader
 valdataset = Dataset('val', args)
 valloader = dataset2dataloader(valdataset, args.batch_size, args.num_workers, shuffle=False)  
@@ -131,13 +129,12 @@ def test():
         cons_total = 0.0
         attns = []
         lossF = nn.CrossEntropyLoss()
-
-        for (i_iter, input) in tqdm(enumerate(valloader)):
+        loop = tqdm(len(valloader))
+        for (i_iter, input) in enumerate(valloader):
             
             video_model.eval()
             
             tic = time.time()
-            video,label = input
             video = input.get('video').to(device)
             label = input.get('label').to(device)
             total = total + video.size(0)
@@ -151,17 +148,13 @@ def test():
                 y_v = video_model(video)                                           
                                 
             v_acc.extend((y_v.argmax(-1) == label.argmax(-1)).cpu().numpy().tolist())
-            print(lossF(y_v, label).cpu().numpy().tolist())
-            v_loss.extend(lossF(y_v, label).cpu().numpy().tolist())
+            v_loss.append(lossF(y_v, label).cpu().numpy())
             toc = time.time()
-            if(i_iter % 10 == 0):  
-                msg = ''              
-                msg = add_msg(msg, 'v_acc={:.5f}', np.array(v_acc).reshape(-1).mean())                
-                msg = add_msg(msg, 'eta={:.5f}', (toc-tic)*(len(valloader)-i_iter)/3600.0)
-                                
-                print(msg)         
-               
-
+            msg = ''
+            msg = add_msg(msg, 'v_acc={:.5f}', np.array(v_acc).reshape(-1).mean())                
+                                               
+            loop.set_description(msg)
+            loop.update(1)
         acc = float(np.array(v_acc).reshape(-1).mean())
         msg = 'v_acc_{:.5f}_'.format(acc)
         loss = float(np.array(v_loss).reshape(-1).mean())
@@ -217,7 +210,7 @@ def train():
             
             video_model.train()
             video = input.get('video').to(device)
-            label = input.get('label').to(device)
+            label = input.get('label').to(device).long()
             
             loss = {}
             
@@ -278,14 +271,16 @@ def train():
             
             toc = time.time()
             trainLoss.append(loss_bp.item())
-            trainAcc.append((y_v.argmax(-1) == label.argmax(-1)).cpu().numpy().tolist())
+            boolArray = (y_v.argmax(-1) == label.argmax(-1)).cpu().numpy()
+            trainAcc.append(boolArray.mean())
+
 
             
 
             if(i_iter == len(loader) - 1 or (epoch == 0 and i_iter == 0)):
 
-                acc, msg,loss = test()
-                testLoss.append(loss)
+                acc, msg,testlossind = test()
+                testLoss.append(testlossind)
                 testAcc.append(acc)
 
                 if(acc > best_acc):
