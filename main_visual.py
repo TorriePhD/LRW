@@ -129,7 +129,7 @@ def test():
         cons_total = 0.0
         attns = []
         lossF = nn.CrossEntropyLoss()
-        loop = tqdm(len(valloader))
+        loop = tqdm(total=len(valloader), position=0, leave=True)
         for (i_iter, input) in enumerate(valloader):
             
             video_model.eval()
@@ -195,7 +195,7 @@ def train():
     alpha = 0.2
     beta_distribution = torch.distributions.beta.Beta(alpha, alpha)
     scaler = GradScaler()     
-    loop = tqdm(max_epoch*len(loader))    
+    loop = tqdm(total=max_epoch*len(loader), position=0, leave=True)
     loop.set_description('Start Training')    
     for epoch in range(max_epoch):
         total = 0.0
