@@ -13,7 +13,7 @@ import torch
 class LRWDataset(Dataset):
     def __init__(self, phase, args):
 
-        with open('/home/st392/code/sandbox/learn-an-effective-lip-reading-model-without-pains/label_sorted.txt') as myfile:
+        with open('/home/st392/code/learn-an-effective-lip-reading-model-without-pains/label_sorted.txt') as myfile:
             self.labels = myfile.read().splitlines()            
         
         self.list = []
@@ -25,7 +25,7 @@ class LRWDataset(Dataset):
             setattr(self.args, 'is_aug', True)
 
         for (i, label) in enumerate(self.labels):
-            files = glob.glob(os.path.join('/home/st392/code/datasets/LRW/lrw_roi_80_116_175_211_npy_gray_pkl_jpeg', label, phase, '*.pkl'))                    
+            files = glob.glob(os.path.join('/tmp/code/datasets/LRW/lrw_roi_80_116_175_211_npy_gray_pkl_jpeg', label, phase, '*.pkl'))                    
             files = sorted(files)
             
 
