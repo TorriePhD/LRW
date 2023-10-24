@@ -147,7 +147,7 @@ def test():
                 # else:
                 y_v = video_model(video)                                           
                                 
-            v_acc.extend((y_v.argmax(-1) == label.argmax(-1)).cpu().numpy().tolist())
+            v_acc.extend((y_v.argmax(-1) == label).cpu().numpy().tolist())
             v_loss.append(lossF(y_v, label).cpu().numpy())
             toc = time.time()
             msg = ''
